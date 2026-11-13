@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Car Racing Game</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background: #111;
+}
+
+#game {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: #267a27;
+}
+
+/* Road */
+#road {
+    position: absolute;
+    width: 420px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    overflow: hidden;
+}
+
+/* Road lines */
+.line {
+    position: absolute;
+    width: 8px;
+    height: 80px;
+    background: white;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Player car */
+#player {
+    position: absolute;
+    width: 52px;
+    height: 90px;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #e53935;
+    border-radius: 12px 12px 8px 8px;
+    z-index: 5;
+    box-shadow: 0 5px 15px rgba(0,0,0,.5);
+}
+
+/* Car windows */
+#player::before {
+    content: "";
+    position: absolute;
+    width: 38px;
+    height: 25px;
+    left: 7px;
+    top: 12px;
+    background: #222;
+    border-radius: 7px;
+}
+
+#player::after {
+    content: "";
+    position: absolute;
+    width: 38px;
+    height: 18px;
+    left: 7px;
+    bottom: 12px;
+    background: #111;
+    border-radius: 5px;
+}
+
+/* Enemy cars */
+.enemy {
+    position: absolute;
+    width: 52px;
+    height: 90px;
+    border-radius: 12px 12px 8px 8px;
+    z-index: 4;
+}
+
+.enemy::before {
+    content: "";
+    position: absolute;
+    width: 38px;
+    height: 25px;
+    left: 7px;
+    top: 12px;
+    background: #222;
+    border-radius: 7px;
+}
+
+/* HUD */
+#hud {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    right: 15px;
+    display: flex;
+    justify-content: space-between;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    z-index: 10;
+    text-shadow: 2px 2px 5px black;
+}
+
+/* Start/Game Over */
+.screen {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+}
+
+.box {
+    background: #171717;
+    color: white;
+    padding: 35px;
+    border-radius: 20px;
+    text-align: center;
+    min-width: 280px;
+    box-shadow: 0 0 40px rgba(0,0,0,.7);
+}
+
+.box h1 {
+    margin-top: 0;
+}
+
+button {
+    border: 0;
+    background: #ff3d00;
+    color: white;
+    padding: 13px 25px;
+    border-radius: 10px;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #e63200;
+}
+
+/* Mobile controls */
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 25px;
+    z-index: 15;
+}
+
+.control {
+    width: 70px;
+    height: 60px;
+    border: none;
+    border-radius: 15px;
+    background: rgba(255,255,255,.25);
+    color: white;
+    font-size: 30px;
+    backdrop-filter: blur(5px);
+}
+
+@media (min-width: 700px) {
+    #controls {
+        display: none;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+    <div id="road"></div>
+
+    <div id="hud">
+        <div>🏆 Score: <span id="score">0</span></div>
+        <div>⚡ Speed: <span id="speed">1</span></div>
+    </div>
+
+    <div id="player"></div>
+
+    <div id="controls">
+        <button class="control" id="left">⬅️</button>
+        <button class="control" id="right">➡️</button>
+    </div>
+
+    <!-- Start Screen -->
+    <div class="screen" id="startScreen">
+        <div class="box">
+            <h1>🏎️ Car Racing</h1>
+
+            <p>
+                Arrow Keys / A-D से car चलाओ
+            </p>
+
+            <p>
+                🚗 Traffic से बचो और ज्यादा score बनाओ!
+            </p>
+
+            <button onclick="startGame()">
+                START GAME
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over -->
+    <div class="screen" id="gameOver" style="display:none;">
+        <div class="box">
+            <h1>💥 GAME OVER</h1>
+
+            <p>
+                आपका Score:
+                <strong id="finalScore">0</strong>
+            </p>
+
+            <button onclick="location.reload()">
+                🔄 RESTART
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+
+const game = document.getElementById("game");
+const road = document.getElementById("road");
+const player = document.getElementById("player");
+
+const scoreText = document.getElementById("score");
+const speedText = document.getElementById("speed");
+
+let playerX;
+let score = 0;
+let speed = 5;
+let running = false;
+
+let leftPressed = false;
+let rightPressed = false;
+
+let enemies = [];
+let roadLines = [];
+
+
+// -------------------------
+// Road Lines
+// -------------------------
+
+function createRoadLines() {
+
+    for (let i = 0; i < 7; i++) {
+
+        const line = document.createElement("div");
+
+        line.className = "line";
+
+        line.style.top =
+            (i * 150) + "px";
+
+        road.appendChild(line);
+
+        roadLines.push({
+            element: line,
+            y: i * 150
+        });
+    }
+}
+
+
+// -------------------------
+// Start Game
+// -------------------------
+
+function startGame() {
+
+    document.getElementById("startScreen")
+        .style.display = "none";
+
+    playerX =
+        window.innerWidth / 2;
+
+    player.style.left =
+        playerX + "px";
+
+    running = true;
+
+    createRoadLines();
+
+    spawnEnemy();
+
+    gameLoop();
+}
+
+
+// -------------------------
+// Keyboard
+// -------------------------
+
+document.addEventListener("keydown", function(e) {
+
+    if (e.key === "ArrowLeft" || e.key === "a") {
+        leftPressed = true;
+    }
+
+    if (e.key === "ArrowRight" || e.key === "d") {
+        rightPressed = true;
+    }
+});
+
+document.addEventListener("keyup", function(e) {
+
+    if (e.key === "ArrowLeft" || e.key === "a") {
+        leftPressed = false;
+    }
+
+    if (e.key === "ArrowRight" || e.key === "d") {
+        rightPressed = false;
+    }
+});
+
+
+// -------------------------
+// Mobile Buttons
+// -------------------------
+
+const leftBtn =
+    document.getElementById("left");
+
+const rightBtn =
+    document.getElementById("right");
+
+leftBtn.addEventListener("touchstart", e => {
+    e.preventDefault();
+    leftPressed = true;
+});
+
+leftBtn.addEventListener("touchend", () => {
+    leftPressed = false;
+});
+
+rightBtn.addEventListener("touchstart", e => {
+    e.preventDefault();
+    rightPressed = true;
+});
+
+rightBtn.addEventListener("touchend", () => {
+    rightPressed = false;
+});
+
+
+// -------------------------
+// Enemy Car
+// -------------------------
+
+function spawnEnemy() {
+
+    if (!running) return;
+
+    const enemy =
+        document.createElement("div");
+
+    enemy.className = "enemy";
+
+    const colors = [
+        "#2196f3",
+        "#ff9800",
+        "#9c27b0",
+        "#00bcd4",
+        "#f44336",
+        "#eeeeee"
+    ];
+
+    enemy.style.background =
+        colors[Math.floor(Math.random() * colors.length)];
+
+    const roadLeft =
+        (window.innerWidth - 420) / 2;
+
+    const lane =
+        Math.floor(Math.random() * 3);
+
+    const x =
+        roadLeft + 60 + lane * 140;
+
+    enemy.style.left =
+        x + "px";
+
+    enemy.style.top =
+        "-100px";
+
+    game.appendChild(enemy);
+
+    enemies.push({
+        element: enemy,
+        x: x,
+        y: -100
+    });
+
+    setTimeout(
+        spawnEnemy,
+        Math.max(500, 1000 - score * 2)
+    );
+}
+
+
+// -------------------------
+// Collision
+// -------------------------
+
+function collision(a, b) {
+
+    const r1 =
+        a.getBoundingClientRect();
+
+    const r2 =
+        b.getBoundingClientRect();
+
+    return !(
+        r1.bottom < r2.top ||
+        r1.top > r2.bottom ||
+        r1.right < r2.left ||
+        r1.left > r2.right
+    );
+}
+
+
+// -------------------------
+// Game Loop
+// -------------------------
+
+function gameLoop() {
+
+    if (!running) return;
+
+
+    // Car movement
+
+    if (leftPressed) {
+        playerX -= 7;
+    }
+
+    if (rightPressed) {
+        playerX += 7;
+    }
+
+
+    // Road boundaries
+
+    const roadLeft =
+        (window.innerWidth - 420) / 2;
+
+    const minX =
+        roadLeft + 30;
+
+    const maxX =
+        roadLeft + 390;
+
+    if (playerX < minX) {
+        playerX = minX;
+    }
+
+    if (playerX > maxX) {
+        playerX = maxX;
+    }
+
+    player.style.left =
+        playerX + "px";
+
+
+    // Move road lines
+
+    roadLines.forEach(line => {
+
+        line.y += speed;
+
+        if (line.y > window.innerHeight) {
+            line.y -= 1050;
+        }
+
+        line.element.style.top =
+            line.y + "px";
+    });
+
+
+    // Move enemy cars
+
+    enemies.forEach((enemy, index) => {
+
+        enemy.y += speed;
+
+        enemy.element.style.top =
+            enemy.y + "px";
+
+
+        // Collision
+
+        if (collision(player, enemy.element)) {
+
+            endGame();
+
+            return;
+        }
+
+
+        // Enemy passed player
+
+        if (enemy.y > window.innerHeight) {
+
+            enemy.element.remove();
+
+            enemies.splice(index, 1);
+
+            score += 10;
+
+            scoreText.textContent =
+                score;
+
+
+            // Increase speed
+
+            if (score % 50 === 0) {
+
+                speed += 0.5;
+
+                speedText.textContent =
+                    speed.toFixed(1);
+            }
+        }
+    });
+
+
+    requestAnimationFrame(gameLoop);
+}
+
+
+// -------------------------
+// Game Over
+// -------------------------
+
+function endGame() {
+
+    running = false;
+
+    document.getElementById("finalScore")
+        .textContent = score;
+
+    document.getElementById("gameOver")
+        .style.display = "flex";
+}
+
+</script>
+
+</body>
+</html>
